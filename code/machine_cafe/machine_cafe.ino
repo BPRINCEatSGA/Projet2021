@@ -1,63 +1,134 @@
-#include <Wire.h>
-#include <Adafruit_PWMServoDriver.h>
-#include <SoftwareSerial.h>
+const int bouton1 = 2; //le bouton petit café est connecté à la broche 2 de la carte Adruino
+const int bouton2 = 3; //le bouton grand café 
+const int chauffage = 6; 
+const int pompe = 7;
+int etatBouton1;
+int etatBouton2;
+long unsigned lastDebounceTime = 0;
+long unsigned lastDebounceTime1 = 1000;
+long unsigned lastDebounceTime2 = 0;
+long unsigned lastDebounceTime3 = 8000;
+long unsigned debounceDelay  = 3000;  
+long unsigned debounceDelay1  = 5000; 
+int etat_machine = 0; // 0 en attente, 1 en fonctionnement
 
-//Bluetooth
-SoftwareSerial mySerial(10, 11); // RX, TX
+void cafe_court()
 
-//Servo
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-const int servoStart = 220; //Valeur Min
-const int servoEnd = 420; //Valeur Max
-int ordre = 0;
-String readString;
+   {
+   digitalWrite(chauffage, HIGH); // on active le chauffage
+   delay(300);
+   etat_machine = 1;
+   digitalWrite(pompe, HIGH); // on active la pompe
+   Serial.println("café court en cour"); 
+   
+        
+    }
 
-int brochePouce=0;
-int brocheIndex=2;
-int brocheM=4;
-int brocheA=6;
-int brocheO=8;
-
-void setup() {
-  //Servo
-  pwm.begin(); 
-  pwm.setPWMFreq(50);
-
-  //Bluetooth
-  pinMode(9,OUTPUT); digitalWrite(9,HIGH);
-  mySerial.begin(38400);
-
-  //Liason série
-  Serial.begin(9600);
-  Serial.println ("Main_Bionique_prete");
+void cafe_long()
+{
+   
+   digitalWrite(chauffage, HIGH); // on active le chauffage
+   delay(300);
+   etat_machine = 2;
+   digitalWrite(pompe, HIGH); // on active la pompe
+   Serial.println("café long en court"); 
+   
 }
 
-void loop(){
 
-  while (mySerial.available()) {
-    char c = mySerial.read();  //gets one byte from serial buffer
-    readString += c; //makes the string readString
-    delay(9);  //slow looping to allow buffer to fill with next character
+void interruption1()
+{ 
+  Serial.println("bouton1"); 
+    if (etat_machine == 0)
+   {  lastDebounceTime = millis();
+      cafe_court();}
+   
+
+else 
+
+{ Serial.println ("interrution");
+  if ((millis() - lastDebounceTime) > lastDebounceTime1 )
+{ lastDebounceTime2 = millis ;    
+  etat_machine = 3;
+  Serial.println("interruption1");  
+  digitalWrite(pompe, LOW);
+  digitalWrite(chauffage, LOW);
+  Serial.println ("interrompu");
+ }
+           
+      else 
+{ Serial.println ("rebond");}
+      }}
+      
+
+
+void interruption2()
+{
+  Serial.println("bouton2"); 
+   delay(100);
+  if (etat_machine == 0)
+{ lastDebounceTime = millis(); 
+   cafe_long();
   }
 
-  if (readString.length() > 0) {
-    int ordre = readString.toInt();
-    Serial.println (ordre);
-    if ((ordre > (servoStart + 1000)) && (ordre < (servoEnd + 1000))) {
-      pwm.setPWM(brochePouce,0,ordre-1000);
-    }
-    else if ((ordre > (servoStart + 2000)) && (ordre < (servoEnd + 2000))){
-      pwm.setPWM(brocheIndex,0,ordre-2000);
-    }
-    else if ((ordre > (servoStart + 3000)) && (ordre < (servoEnd + 3000))){
-      pwm.setPWM(brocheM,0,ordre-3000);   
-      pwm.setPWM(brocheA,0,ordre-3000);   
-      pwm.setPWM(brocheO,0,ordre-3000);   
-    }
-    else{
-      Serial.print("echec : ");
-      Serial.println (ordre);
-    }
-    readString=""; //empty for next input
-  } 
+else 
+
+{  if ((millis() - lastDebounceTime) > lastDebounceTime1 )
+{   lastDebounceTime2 = millis ; 
+    etat_machine = 3;
+    Serial.println("interruption2");  
+     digitalWrite(pompe, LOW);
+    digitalWrite(chauffage, LOW);
+    Serial.println ("interrompu");
+    
+   
+}}}
+
+
+void setup()
+{
+    pinMode(chauffage, OUTPUT); // le chauffage est une sortie
+    pinMode(pompe, OUTPUT);
+    pinMode(bouton1, INPUT_PULLUP); // le bouton est une entrée
+    pinMode(bouton2, INPUT_PULLUP); 
+    Serial.begin(9600); 
+
+    etat_machine = 0;
+    //etatBouton1 = HIGH; // on initialise l'état du bouton comme "relaché"
+    //etatBouton2 = HIGH;
 }
+
+void loop()
+{ 
+    attachInterrupt(0, interruption1, FALLING);
+    attachInterrupt(1, interruption2, FALLING);
+    if (etat_machine==1)
+    { if ((millis() - lastDebounceTime) > debounceDelay)
+        {digitalWrite(pompe, LOW);
+         digitalWrite(chauffage, LOW);
+         Serial.println ("fait cour");
+         delay(100);//attendre un petit temps et ne pas remettre imediatement les boutons en marche
+          etat_machine=0; 
+  }}
+  
+   if (etat_machine==2)
+    { if ((millis() - lastDebounceTime) > debounceDelay1)
+        {digitalWrite(pompe, LOW);
+         digitalWrite(chauffage, LOW);
+         Serial.println ("fait long");
+         delay(100);//attendre un petit temps et ne pas remettre imediatement les boutons en marche
+          etat_machine=0; 
+  }}
+
+  if (etat_machine==3)
+    { if ((millis() - lastDebounceTime2) > lastDebounceTime3 )
+        { Serial.println ("debloquage");
+        etat_machine = 0;
+           
+  }
+  else 
+  {Serial.println ("anti rebond interuption");
+  
+  }}
+    
+ }   
